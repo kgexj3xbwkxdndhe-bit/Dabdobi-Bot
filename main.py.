@@ -15,4 +15,4 @@ async def hi(ctx):
     await ctx.send('أهلاً بك! أنا دبدوبي، كيف يمكنني مساعدتك؟')
 
 # ضع التوكن الخاص بك هنا
-bot.run('MTQ4OTExMzU3NjIxNTE1NDg1MA.G146xf.Lx5N-Moa-LBusreIfBDVTjhYvG6NnQnul3Td8U')
+bot.run('MTQ4OTExMzU3NjIxNTE1NDg1MA.GNz4_k.vobYnO_ihS7QIR622uccIrx_F7eIVNdDPjq8UI')
