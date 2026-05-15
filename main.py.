@@ -5,13 +5,13 @@ import io
 import requests
 import os
 
-# 1. الإعدادات الأساسية وسحب التوكن
+# 1. إعداد التوكن والـ Intents
+# اسحب التوكن من Environment Variables في Render باسم DISCORD_TOKEN
 TOKEN = os.getenv('DISCORD_TOKEN')
 
-# ضروري جداً تفعيل الـ members لكي يعمل الـ on_member_join
 intents = discord.Intents.default()
 intents.message_content = True
-intents.members = True 
+intents.members = True  # ضروري جداً لرصد دخول الأعضاء
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 @bot.event
@@ -22,16 +22,17 @@ async def on_ready():
 async def hi(ctx):
     await ctx.send('أهلاً! أنا دبدوبي، أعمل الآن بنجاح وأمان.')
 
-# 2. كود الترحيب (يجب أن يكون قبل سطر التشغيل النهائي)
+# 2. كود الترحيب المتطور (GIF + Overlay + Background Removal)
 @bot.event
 async def on_member_join(member):
-    # ايدي الروم الصحيح الخاص بك
+    # ايدي الروم الخاص بك
     channel = bot.get_channel(1491147425833029672) 
     
+    # روابط الصور التي زودتني بها
     BG_URL = "https://cdn.discordapp.com/attachments/1491146217260847124/1504880901501489243/c32907ac10dd46d2b94de7f37df71cfd.gif?ex=6a08990e&is=6a07478e&hm=b9e9b1a7a7afad3a0e2e81f3ae8c35dbcf6b797e409f34c0b902bfa64ce609c5&"
     OVERLAY_URL = "https://cdn.discordapp.com/attachments/1491146217260847124/1504880891795734690/b0e6c5cb36d34e3990597a4da83232b5.gif?ex=6a08990b&is=6a07478b&hm=ffa2e7f650f0cf243d245d539f36caf604ca4ada482618b8ee0dd6e93d88fb6f&"
     
-    # جلب معالجة صورة العضو
+    # جلب صورة العضو وجعلها دائرية بمقاس 200x200
     avatar_url = member.display_avatar.url
     avatar_data = requests.get(avatar_url).content
     avatar_img = Image.open(io.BytesIO(avatar_data)).convert("RGBA").resize((200, 200))
@@ -40,34 +41,57 @@ async def on_member_join(member):
     draw = ImageDraw.Draw(mask)
     draw.ellipse((0, 0, 200, 200), fill=255)
     
+    # فتح ملفات الـ GIF
     bg_gif = Image.open(io.BytesIO(requests.get(BG_URL).content))
     overlay_gif = Image.open(io.BytesIO(requests.get(OVERLAY_URL).content))
 
     frames = []
     overlay_iter = ImageSequence.Iterator(overlay_gif)
 
+    # حلقة الـ for loop لمعالجة كل إطار
     for frame in ImageSequence.Iterator(bg_gif):
         base = frame.convert("RGBA")
-        # وضع صورة العضو (جرب هذه الإحداثيات وعدلها حسب حاجتك)
+        
+        # وضع صورة العضو (تستطيع تغيير 400 و 150 لتغيير المكان)
         base.paste(avatar_img, (400, 150), mask)
         
         try:
             overlay_frame = next(overlay_iter).convert("RGBA")
-            # دمج الطبقة الشفافة (تأكد أن مقاسها نفس مقاس الخلفية)
+            
+            # --- ميزة إزالة الخلفية السوداء من الأزهار ---
+            datas = overlay_frame.getdata()
+            newData = []
+            for item in datas:
+                # إذا كان اللون قريباً من الأسود، اجعله شفافاً
+                if item[0] < 25 and item[1] < 25 and item[2] < 25:
+                    newData.append((0, 0, 0, 0))
+                else:
+                    newData.append(item)
+            overlay_frame.putdata(newData)
+            # ------------------------------------------
+
+            # دمج الطبقة الشفافة فوق الخلفية وصورة العضو
             base.alpha_composite(overlay_frame.resize(base.size))
+            
         except StopIteration:
+            # إذا انتهى الـ GIF الشفاف، أعد البدء من الإطار الأول
             overlay_iter = ImageSequence.Iterator(overlay_gif)
             overlay_frame = next(overlay_iter).convert("RGBA")
             base.alpha_composite(overlay_frame.resize(base.size))
 
         frames.append(base)
 
+    # حفظ النتيجة النهائية كـ GIF
     output = io.BytesIO()
     frames[0].save(output, format="GIF", save_all=True, append_images=frames[1:], loop=0, duration=bg_gif.info.get('duration', 100))
     output.seek(0)
 
+    # إرسال الصورة للسيرفر
     file = discord.File(fp=output, filename="welcome_dabdobi.gif")
     await channel.send(f"أهلاً بك يا {member.mention} في عالم دبدوبي المتحرك! 🌸", file=file)
 
-# 3. سطر التشغيل (يجب أن يكون دائماً في آخر الملف)
-bot.run(TOKEN)
+# 3. تشغيل البوت (يجب أن يكون آخر سطر)
+if TOKEN:
+    bot.run(TOKEN)
+else:
+    print("خطأ: لم يتم العثور على التوكن. تأكد من إضافته في إعدادات Render.")
