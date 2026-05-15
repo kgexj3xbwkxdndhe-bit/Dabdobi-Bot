@@ -10,95 +10,88 @@ TOKEN = os.getenv('DISCORD_TOKEN')
 
 intents = discord.Intents.default()
 intents.message_content = True
-intents.members = True  # ضروري جداً لرصد دخول الأعضاء الجدد
+intents.members = True  
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 @bot.event
 async def on_ready():
     print(f'تم تشغيل البوت بنجاح باسم: {bot.user.name}')
 
-# 2. كود الرد على الرسائل (بما في ذلك البوتات الأخرى)
+# 2. كود الرد الذكي (البحث عن كلمة السر داخل أي رسالة)
 @bot.event
 async def on_message(message):
-    # اجعل البوت يتجاهل نفسه فقط لكي لا يدخل في حلقة تكرار لانهائية
+    # تجاهل رسائل البوت نفسه فقط
     if message.author == bot.user:
         return
 
-    # إذا أرسل أي شخص (أو بوت) كلمة !hi
-    if message.content.lower() == "!hi":
+    # البحث عن "!hi" في أي مكان داخل الرسالة
+    if "!hi" in message.content.lower():
         await message.channel.send('أهلاً! أنا دبدوبي، استلمت إشارتك وأنا أعمل الآن بنشاط. 🐾')
 
-    # سطر ضروري لكي تظل الأوامر الأخرى (commands) تعمل
+    # ضروري جداً لكي تعمل بقية الأوامر
     await bot.process_commands(message)
 
-# 3. كود الترحيب المتطور (دمج GIF + حذف الخلفية السوداء)
+# 3. كود الترحيب المتطور (GIF + Overlay + Background Removal)
 @bot.event
 async def on_member_join(member):
-    # ايدي الروم الخاص بك
     channel = bot.get_channel(1491147425833029672) 
     
-    # روابط الصور (الخلفية والأزهار)
     BG_URL = "https://cdn.discordapp.com/attachments/1491146217260847124/1504880901501489243/c32907ac10dd46d2b94de7f37df71cfd.gif"
     OVERLAY_URL = "https://cdn.discordapp.com/attachments/1491146217260847124/1504880891795734690/b0e6c5cb36d34e3990597a4da83232b5.gif"
     
-    # جلب معالجة صورة العضو
-    avatar_url = member.display_avatar.url
-    avatar_data = requests.get(avatar_url).content
-    avatar_img = Image.open(io.BytesIO(avatar_data)).convert("RGBA").resize((200, 200))
-    
-    # صنع القناع الدائري
-    mask = Image.new("L", (200, 200), 0)
-    draw = ImageDraw.Draw(mask)
-    draw.ellipse((0, 0, 200, 200), fill=255)
-    
-    # فتح الـ GIFs
-    bg_gif = Image.open(io.BytesIO(requests.get(BG_URL).content))
-    overlay_gif = Image.open(io.BytesIO(requests.get(OVERLAY_URL).content))
-
-    frames = []
-    overlay_iter = ImageSequence.Iterator(overlay_gif)
-
-    # حلقة المعالجة لكل إطار (for loop)
-    for frame in ImageSequence.Iterator(bg_gif):
-        base = frame.convert("RGBA")
+    # معالجة صورة العضو
+    try:
+        avatar_url = member.display_avatar.url
+        avatar_data = requests.get(avatar_url).content
+        avatar_img = Image.open(io.BytesIO(avatar_data)).convert("RGBA").resize((200, 200))
         
-        # وضع صورة العضو في الإحداثيات (400, 150)
-        base.paste(avatar_img, (400, 150), mask)
+        mask = Image.new("L", (200, 200), 0)
+        draw = ImageDraw.Draw(mask)
+        draw.ellipse((0, 0, 200, 200), fill=255)
         
-        try:
-            overlay_frame = next(overlay_iter).convert("RGBA")
+        # فتح ملفات الـ GIF
+        bg_gif = Image.open(io.BytesIO(requests.get(BG_URL).content))
+        overlay_gif = Image.open(io.BytesIO(requests.get(OVERLAY_URL).content))
+
+        frames = []
+        overlay_iter = ImageSequence.Iterator(overlay_gif)
+
+        for frame in ImageSequence.Iterator(bg_gif):
+            base = frame.convert("RGBA")
+            base.paste(avatar_img, (400, 150), mask)
             
-            # --- ميزة إزالة الخلفية السوداء برمجياً ---
-            datas = overlay_frame.getdata()
-            newData = []
-            for item in datas:
-                # إذا كان اللون قريباً من الأسود، اجعله شفافاً
-                if item[0] < 30 and item[1] < 30 and item[2] < 30:
-                    newData.append((0, 0, 0, 0))
-                else:
-                    newData.append(item)
-            overlay_frame.putdata(newData)
-            # ---------------------------------------
+            try:
+                overlay_frame = next(overlay_iter).convert("RGBA")
+                
+                # إزالة الخلفية السوداء برمجياً
+                datas = overlay_frame.getdata()
+                newData = []
+                for item in datas:
+                    if item[0] < 30 and item[1] < 30 and item[2] < 30:
+                        newData.append((0, 0, 0, 0))
+                    else:
+                        newData.append(item)
+                overlay_frame.putdata(newData)
 
-            base.alpha_composite(overlay_frame.resize(base.size))
-            
-        except StopIteration:
-            overlay_iter = ImageSequence.Iterator(overlay_gif)
-            overlay_frame = next(overlay_iter).convert("RGBA")
-            base.alpha_composite(overlay_frame.resize(base.size))
+                base.alpha_composite(overlay_frame.resize(base.size))
+            except StopIteration:
+                overlay_iter = ImageSequence.Iterator(overlay_gif)
+                overlay_frame = next(overlay_iter).convert("RGBA")
+                base.alpha_composite(overlay_frame.resize(base.size))
 
-        frames.append(base)
+            frames.append(base)
 
-    # حفظ وإرسال النتيجة
-    output = io.BytesIO()
-    frames[0].save(output, format="GIF", save_all=True, append_images=frames[1:], loop=0, duration=bg_gif.info.get('duration', 100))
-    output.seek(0)
+        output = io.BytesIO()
+        frames[0].save(output, format="GIF", save_all=True, append_images=frames[1:], loop=0, duration=bg_gif.info.get('duration', 100))
+        output.seek(0)
 
-    file = discord.File(fp=output, filename="welcome_dabdobi.gif")
-    await channel.send(f"أهلاً بك يا {member.mention} ", file=file)
+        file = discord.File(fp=output, filename="welcome_dabdobi.gif")
+        await channel.send(f"أهلاً بك يا {member.mention} منور ", file=file)
+    except Exception as e:
+        print(f"حدث خطأ أثناء معالجة الصورة: {e}")
 
-# 4. تشغيل البوت (دائماً في النهاية)
+# 4. تشغيل البوت
 if TOKEN:
     bot.run(TOKEN)
 else:
-    print("خطأ: لم يتم العثور على التوكن في إعدادات Render.")
+    print("خطأ: لم يتم العثور على التوكن في Environment Variables.")
