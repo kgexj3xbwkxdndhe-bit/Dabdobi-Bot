@@ -1,12 +1,17 @@
 import discord
 from discord.ext import commands
+from PIL import Image, ImageDraw, ImageSequence
+import io
+import requests
 import os
 
-# سحب التوكن مباشرة من إعدادات Render (Environment Variables)
+# 1. الإعدادات الأساسية وسحب التوكن
 TOKEN = os.getenv('DISCORD_TOKEN')
 
+# ضروري جداً تفعيل الـ members لكي يعمل الـ on_member_join
 intents = discord.Intents.default()
 intents.message_content = True
+intents.members = True 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 @bot.event
@@ -17,63 +22,52 @@ async def on_ready():
 async def hi(ctx):
     await ctx.send('أهلاً! أنا دبدوبي، أعمل الآن بنجاح وأمان.')
 
-bot.run(TOKEN)
-import discord
-from discord.ext import commands
-from PIL import Image, ImageDraw, ImageSequence
-import io
-import requests
-
+# 2. كود الترحيب (يجب أن يكون قبل سطر التشغيل النهائي)
 @bot.event
 async def on_member_join(member):
-    # 1. حدد ايدي الروم الذي سيرسل فيه الترحيب
-    channel = bot.get_channel(1234567890) #1491147425833029672
-    # 2. روابط الصور (استبدلها بروابطك المباشرة)
+    # ايدي الروم الصحيح الخاص بك
+    channel = bot.get_channel(1491147425833029672) 
+    
     BG_URL = "https://cdn.discordapp.com/attachments/1491146217260847124/1504880901501489243/c32907ac10dd46d2b94de7f37df71cfd.gif?ex=6a08990e&is=6a07478e&hm=b9e9b1a7a7afad3a0e2e81f3ae8c35dbcf6b797e409f34c0b902bfa64ce609c5&"
     OVERLAY_URL = "https://cdn.discordapp.com/attachments/1491146217260847124/1504880891795734690/b0e6c5cb36d34e3990597a4da83232b5.gif?ex=6a08990b&is=6a07478b&hm=ffa2e7f650f0cf243d245d539f36caf604ca4ada482618b8ee0dd6e93d88fb6f&"
     
-    # 3. جلب صورة العضو ومعالجتها (جعلها دائرية)
+    # جلب معالجة صورة العضو
     avatar_url = member.display_avatar.url
     avatar_data = requests.get(avatar_url).content
     avatar_img = Image.open(io.BytesIO(avatar_data)).convert("RGBA").resize((200, 200))
     
-    # صنع قناع دائري لصورة العضو
     mask = Image.new("L", (200, 200), 0)
     draw = ImageDraw.Draw(mask)
     draw.ellipse((0, 0, 200, 200), fill=255)
     
-    # 4. فتح الخلفية والطبقة الشفافة
     bg_gif = Image.open(io.BytesIO(requests.get(BG_URL).content))
     overlay_gif = Image.open(io.BytesIO(requests.get(OVERLAY_URL).content))
 
-    frames = [] # هذه القائمة ستجمع الإطارات المدمجة
+    frames = []
+    overlay_iter = ImageSequence.Iterator(overlay_gif)
 
-    # 5. عملية الدمج (إطار تلو الآخر)
-    # سنمر على إطارات الخلفية وندمج فوقها صورة العضو ثم الأزهار
     for frame in ImageSequence.Iterator(bg_gif):
-        # تجهيز الإطار الحالي من الخلفية
         base = frame.convert("RGBA")
-        
-        # وضع صورة العضو في المنتصف (مثلاً الإحداثيات 400, 150)
+        # وضع صورة العضو (جرب هذه الإحداثيات وعدلها حسب حاجتك)
         base.paste(avatar_img, (400, 150), mask)
         
-        # جلب الإطار المقابل من الأزهار المتحركة ووضعه في الأعلى
         try:
-            overlay_frame = next(ImageSequence.Iterator(overlay_gif)).convert("RGBA")
-            base.alpha_composite(overlay_frame) # دمج الطبقة الشفافة
+            overlay_frame = next(overlay_iter).convert("RGBA")
+            # دمج الطبقة الشفافة (تأكد أن مقاسها نفس مقاس الخلفية)
+            base.alpha_composite(overlay_frame.resize(base.size))
         except StopIteration:
-            # إذا انتهت إطارات الأزهار قبل الخلفية، نعيد تشغيل أزهار من الأول
-            overlay_gif.seek(0)
-            overlay_frame = overlay_gif.convert("RGBA")
-            base.alpha_composite(overlay_frame)
+            overlay_iter = ImageSequence.Iterator(overlay_gif)
+            overlay_frame = next(overlay_iter).convert("RGBA")
+            base.alpha_composite(overlay_frame.resize(base.size))
 
         frames.append(base)
 
-    # 6. حفظ النتيجة كـ GIF في الذاكرة
     output = io.BytesIO()
-    frames[0].save(output, format="GIF", save_all=True, append_images=frames[1:], loop=0, duration=bg_gif.info['duration'])
+    frames[0].save(output, format="GIF", save_all=True, append_images=frames[1:], loop=0, duration=bg_gif.info.get('duration', 100))
     output.seek(0)
 
-    # 7. إرسال النتيجة
     file = discord.File(fp=output, filename="welcome_dabdobi.gif")
     await channel.send(f"أهلاً بك يا {member.mention} في عالم دبدوبي المتحرك! 🌸", file=file)
+
+# 3. سطر التشغيل (يجب أن يكون دائماً في آخر الملف)
+bot.run(TOKEN)
