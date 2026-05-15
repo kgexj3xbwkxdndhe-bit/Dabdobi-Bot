@@ -37,7 +37,7 @@ async def on_message(message):
 
     # ب) البحث عن كلمة !hi للرد السريع (تعمل مع البوتات والأشخاص)
     elif "!hi" in message.content.lower():
-        await message.channel.send('أهلاً! استلمت إشارتك، دبدوبي في الخدمة. 🐾')
+        await message.channel.send('أهلاً! استلمت إشارتك، !hi دبدوبي في الخدمة. 🐾')
 
     # ضروري لعمل الأوامر الأخرى
     await bot.process_commands(message)
