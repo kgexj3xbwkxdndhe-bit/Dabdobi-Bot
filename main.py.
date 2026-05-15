@@ -1,24 +1,20 @@
 import discord
 from discord.ext import commands
 import os
-from dotenv import load_dotenv
 
-# تحميل البيانات من الملف السري .env
-load_dotenv()
+# سحب التوكن مباشرة من إعدادات Render (Environment Variables)
 TOKEN = os.getenv('DISCORD_TOKEN')
 
-# إعدادات البوت
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 @bot.event
 async def on_ready():
-    print(f'Logged in as {bot.user.name}')
+    print(f'تم تشغيل البوت بنجاح باسم: {bot.user.name}')
 
 @bot.command()
 async def hi(ctx):
-    await ctx.send('أهلاً بك! أنا دبدوبي، كيف يمكنني مساعدتك؟')
+    await ctx.send('أهلاً! أنا دبدوبي، أعمل الآن بنجاح وأمان.')
 
-# تشغيل البوت باستخدام الرمز المسحوب من الملف السري
 bot.run(TOKEN)
