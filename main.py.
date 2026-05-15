@@ -95,7 +95,7 @@ async def on_member_join(member):
     output.seek(0)
 
     file = discord.File(fp=output, filename="welcome_dabdobi.gif")
-    await channel.send(f"أهلاً بك يا {member.mention} في عالم دبدوبي المتحرك! 🌸", file=file)
+    await channel.send(f"أهلاً بك يا {member.mention} ", file=file)
 
 # 4. تشغيل البوت (دائماً في النهاية)
 if TOKEN:
