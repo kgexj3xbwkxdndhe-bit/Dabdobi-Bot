@@ -88,10 +88,24 @@ async def on_member_join(member):
 
     # إرسال الصورة للسيرفر
     file = discord.File(fp=output, filename="welcome_dabdobi.gif")
-    await channel.send(f"أهلاً بك يا {member.mention} في عالم دبدوبي المتحرك! 🌸", file=file)
+    await channel.send(f"أهلاً بك يا {member.mention} ", file=file)
 
 # 3. تشغيل البوت (يجب أن يكون آخر سطر)
 if TOKEN:
+@bot.event
+async def on_message(message):
+    # 1. اجعل البوت يتجاهل نفسه فقط (عشين ما يدخل في حلقة لا نهائية مع نفسه)
+    if message.author == bot.user:
+        return
+
+    # 2. إذا كانت الرسالة "!hi" وجاءت من بوت (أو أي شخص)
+    if message.content.lower() == "!hi":
+        # هنا سيقوم دبدوبي بالرد حتى لو كان المرسل بوت
+        await message.channel.send('أهلاً! أنا دبدوبي، استلمت إشارتك وأنا أعمل الآن بنشاط. 🐾')
+
+    # 3. سطر ضروري جداً لكي تظل الأوامر الأخرى تعمل
+    await bot.process_commands(message)
+
     bot.run(TOKEN)
 else:
     print("خطأ: لم يتم العثور على التوكن. تأكد من إضافته في إعدادات Render.")
