@@ -9,29 +9,47 @@ import os
 TOKEN = os.getenv('DISCORD_TOKEN')
 
 intents = discord.Intents.default()
-intents.message_content = True
+intents.message_content = True 
 intents.members = True  
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 @bot.event
 async def on_ready():
-    print(f'تم تشغيل البوت بنجاح باسم: {bot.user.name}')
+    print(f'تم تشغيل دبدوبي بنجاح باسم: {bot.user.name}')
 
-# 2. كود الرد الذكي (البحث عن كلمة السر داخل أي رسالة)
+# 2. كود الرد الذكي باستخدام Webhook للالتفاف على تجاهل البوتات
 @bot.event
 async def on_message(message):
-    # تجاهل رسائل البوت نفسه فقط
-    if message.author == bot.user:
+    # تجاهل رسائل البوت نفسه
+    if message.author.id == bot.user.id:
         return
 
-    # البحث عن "!hi" في أي مكان داخل الرسالة
+    # البحث عن كلمة !hi في أي رسالة
     if "!hi" in message.content.lower():
-        await message.channel.send('أهلاً! أنا دبدوبي، استلمت إشارتك وأنا أعمل الآن بنشاط. 🐾')
+        try:
+            # البحث عن ويب هوك موجود مسبقاً في الروم
+            webhooks = await message.channel.webhooks()
+            webhook = discord.utils.get(webhooks, name="DabdobiHelper")
+            
+            # إذا لم يجد ويب هوك، سيقوم بإنشاء واحد جديد
+            if webhook is None:
+                webhook = await message.channel.create_webhook(name="DabdobiHelper")
+            
+            # إرسال الرد عبر الويب هوك (يظهر بشكل مختلف للبوتات الأخرى)
+            await webhook.send(
+                content='أهلاً! أنا دبدوبي، استلمت إشارتك وأنا أعمل الآن بنشاط. 🐾',
+                username='دبدوبي - Dabdobi',
+                avatar_url=bot.user.display_avatar.url
+            )
+        except Exception as e:
+            # في حال فشل الويب هوك (نقص صلاحيات مثلاً)، سيرد بالطريقة العادية كخطة احتياطية
+            print(f"فشل إرسال الويب هوك: {e}")
+            await message.channel.send('أهلاً! أنا دبدوبي، أعمل بنشاط (رد عادي).')
 
-    # ضروري جداً لكي تعمل بقية الأوامر
+    # السماح للأوامر الأخرى بالعمل
     await bot.process_commands(message)
 
-# 3. كود الترحيب المتطور (GIF + Overlay + Background Removal)
+# 3. كود الترحيب الاحترافي (GIF + إزالة الخلفية السوداء)
 @bot.event
 async def on_member_join(member):
     channel = bot.get_channel(1491147425833029672) 
@@ -39,10 +57,9 @@ async def on_member_join(member):
     BG_URL = "https://cdn.discordapp.com/attachments/1491146217260847124/1504880901501489243/c32907ac10dd46d2b94de7f37df71cfd.gif"
     OVERLAY_URL = "https://cdn.discordapp.com/attachments/1491146217260847124/1504880891795734690/b0e6c5cb36d34e3990597a4da83232b5.gif"
     
-    # معالجة صورة العضو
     try:
-        avatar_url = member.display_avatar.url
-        avatar_data = requests.get(avatar_url).content
+        # معالجة صورة العضو
+        avatar_data = requests.get(member.display_avatar.url).content
         avatar_img = Image.open(io.BytesIO(avatar_data)).convert("RGBA").resize((200, 200))
         
         mask = Image.new("L", (200, 200), 0)
@@ -62,8 +79,7 @@ async def on_member_join(member):
             
             try:
                 overlay_frame = next(overlay_iter).convert("RGBA")
-                
-                # إزالة الخلفية السوداء برمجياً
+                # تنظيف الخلفية السوداء للأزهار
                 datas = overlay_frame.getdata()
                 newData = []
                 for item in datas:
@@ -72,12 +88,9 @@ async def on_member_join(member):
                     else:
                         newData.append(item)
                 overlay_frame.putdata(newData)
-
                 base.alpha_composite(overlay_frame.resize(base.size))
             except StopIteration:
                 overlay_iter = ImageSequence.Iterator(overlay_gif)
-                overlay_frame = next(overlay_iter).convert("RGBA")
-                base.alpha_composite(overlay_frame.resize(base.size))
 
             frames.append(base)
 
@@ -85,13 +98,12 @@ async def on_member_join(member):
         frames[0].save(output, format="GIF", save_all=True, append_images=frames[1:], loop=0, duration=bg_gif.info.get('duration', 100))
         output.seek(0)
 
-        file = discord.File(fp=output, filename="welcome_dabdobi.gif")
-        await channel.send(f"أهلاً بك يا {member.mention} منور ", file=file)
+        await channel.send(f"أهلاً بك يا {member.mention} في عالم دبدوبي! 🌸", file=discord.File(fp=output, filename="welcome.gif"))
     except Exception as e:
-        print(f"حدث خطأ أثناء معالجة الصورة: {e}")
+        print(f"حدث خطأ في الترحيب: {e}")
 
 # 4. تشغيل البوت
 if TOKEN:
     bot.run(TOKEN)
 else:
-    print("خطأ: لم يتم العثور على التوكن في Environment Variables.")
+    print("خطأ: التوكن غير موجود.")
