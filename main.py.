@@ -37,7 +37,7 @@ async def on_message(message):
             
             # إرسال الرد عبر الويب هوك (يظهر بشكل مختلف للبوتات الأخرى)
             await webhook.send(
-                content='أهلاً! أنا دبدوبي، استلمت إشارتك وأنا أعمل الآن بنشاط. 🐾',
+                content='أهلاً! أنا دبدوبي، !hi استلمت إشارتك وأنا أعمل الآن بنشاط. 🐾',
                 username='دبدوبي - Dabdobi',
                 avatar_url=bot.user.display_avatar.url
             )
