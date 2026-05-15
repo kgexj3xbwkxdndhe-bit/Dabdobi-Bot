@@ -27,11 +27,10 @@ import requests
 @bot.event
 async def on_member_join(member):
     # 1. حدد ايدي الروم الذي سيرسل فيه الترحيب
-    channel = bot.get_channel(1234567890) # ضع الأيدي الحقيقي هنا
-
+    channel = bot.get_channel(1234567890) #1491147425833029672
     # 2. روابط الصور (استبدلها بروابطك المباشرة)
-    BG_URL = "رابط_الخلفية_الـGIF.gif"
-    OVERLAY_URL = "رابط_الأزهار_الشفافة_GIF.gif"
+    BG_URL = "https://cdn.discordapp.com/attachments/1491146217260847124/1504880901501489243/c32907ac10dd46d2b94de7f37df71cfd.gif?ex=6a08990e&is=6a07478e&hm=b9e9b1a7a7afad3a0e2e81f3ae8c35dbcf6b797e409f34c0b902bfa64ce609c5&"
+    OVERLAY_URL = "https://cdn.discordapp.com/attachments/1491146217260847124/1504880891795734690/b0e6c5cb36d34e3990597a4da83232b5.gif?ex=6a08990b&is=6a07478b&hm=ffa2e7f650f0cf243d245d539f36caf604ca4ada482618b8ee0dd6e93d88fb6f&"
     
     # 3. جلب صورة العضو ومعالجتها (جعلها دائرية)
     avatar_url = member.display_avatar.url
