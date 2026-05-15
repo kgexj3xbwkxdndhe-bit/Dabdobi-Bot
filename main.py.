@@ -1,5 +1,11 @@
 import discord
 from discord.ext import commands
+import os
+from dotenv import load_dotenv
+
+# تحميل البيانات من الملف السري .env
+load_dotenv()
+TOKEN = os.getenv('DISCORD_TOKEN')
 
 # إعدادات البوت
 intents = discord.Intents.default()
@@ -14,5 +20,5 @@ async def on_ready():
 async def hi(ctx):
     await ctx.send('أهلاً بك! أنا دبدوبي، كيف يمكنني مساعدتك؟')
 
-# ضع التوكن الخاص بك هنا
-bot.run('MTQ4OTExMzU3NjIxNTE1NDg1MA.GNz4_k.vobYnO_ihS7QIR622uccIrx_F7eIVNdDPjq8UI')
+# تشغيل البوت باستخدام الرمز المسحوب من الملف السري
+bot.run(TOKEN)
