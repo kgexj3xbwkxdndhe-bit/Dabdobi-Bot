@@ -5,12 +5,65 @@ from discord.ext import commands
 class Actions(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        # قاعدة بيانات مؤقتة لتخزين تحذيرات الأعضاء
+        # قاعدة بيانات مؤقتة لتخزين الردود والتحذيرات
+        self.auto_responses = {}
         self.user_warnings = {}
+        self.MAX_RESPONSES = 5  # الحد الأقصى للردود التلقائية
 
-    # ----------------- 1. أمر الباند (/ban) -----------------
+    # ----------------- 1. أمر إضافة رد تلقائي -----------------
+    @app_commands.command(name="add_say", description="إضافة رد تلقائي جديد للكلمات")
+    @app_commands.describe(trigger="الكلمة التي يكتبها العضو", response="رد البوت عليها")
+    @app_commands.checks.has_permissions(manage_messages=True)
+    async def add_say(self, interaction: discord.Interaction, trigger: str, response: str):
+        if len(self.auto_responses) >= self.MAX_RESPONSES:
+            await interaction.response.send_message(f"❌ وصلت للحد الأقصى من الردود ({self.MAX_RESPONSES})! امسح أحدها أولاً.", ephemeral=True)
+            return
+
+        for i in range(1, self.MAX_RESPONSES + 1):
+            slot_name = f"option_{i}"
+            if slot_name not in self.auto_responses:
+                self.auto_responses[slot_name] = {
+                    "trigger": trigger.lower().strip(),
+                    "response": response
+                }
+                await interaction.response.send_message(f"✅ تم إضافة الرد بنجاح!\nإذا كتب شخص: `{trigger}` سأرد بـ: `{response}`", ephemeral=True)
+                return
+
+    # ----------------- 2. أمر منع (حذف) رد تلقائي -----------------
+    @app_commands.command(name="remove_say", description="منع وحذف رد تلقائي معين")
+    @app_commands.describe(option="اختر رقم الخيار لحذفه")
+    @app_commands.choices(option=[
+        app_commands.Choice(name="Option 1", value="option_1"),
+        app_commands.Choice(name="Option 2", value="option_2"),
+        app_commands.Choice(name="Option 3", value="option_3"),
+        app_commands.Choice(name="Option 4", value="option_4"),
+        app_commands.Choice(name="Option 5", value="option_5"),
+    ])
+    @app_commands.checks.has_permissions(manage_messages=True)
+    async def remove_say(self, interaction: discord.Interaction, option: app_commands.Choice[str]):
+        slot = option.value
+        if slot in self.auto_responses:
+            old_trigger = self.auto_responses[slot]['trigger']
+            del self.auto_responses[slot]
+            await interaction.response.send_message(f"🛑 تم حذف الرد الخاص بـ **{option.name}** (الكلمة: `{old_trigger}`).", ephemeral=True)
+        else:
+            await interaction.response.send_message(f"ℹ️ الخيار فارغ بالفعل ولا يحتوي على رد.", ephemeral=True)
+
+    # ----------------- 3. الاستماع للرسائل (الرد التلقائي) -----------------
+    @commands.Cog.listener()
+    async def on_message(self, message: discord.Message):
+        if message.author == self.bot.user:
+            return
+
+        user_text = message.content.lower().strip()
+        for slot, data in self.auto_responses.items():
+            if user_text == data["trigger"]:
+                await message.channel.send(data["response"])
+                break
+
+    # ----------------- 4. أمر الباند (/ban) -----------------
     @app_commands.command(name="ban", description="حظر عضو من السيرفر (باند)")
-    @app_commands.describe(member="العضو المراد حظره", reason="السبب (اختياري)")
+    @app_commands.describe(member="العضو المراد حظره", reason="السبب")
     @app_commands.checks.has_permissions(ban_members=True)
     async def ban(self, interaction: discord.Interaction, member: discord.Member, reason: str = "لم يتم تحديد سبب"):
         if member.top_role >= interaction.user.top_role:
@@ -20,11 +73,11 @@ class Actions(commands.Cog):
             await member.ban(reason=reason)
             await interaction.response.send_message(f"✈️ تم بنجاح حظر العضو {member.mention}\n**السبب:** {reason}")
         except discord.Forbidden:
-            await interaction.response.send_message("❌ رتبة البوت أقل من رتبة هذا الشخص في السيرفر.", ephemeral=True)
+            await interaction.response.send_message("❌ رتبة البوت أقل من رتبة هذا الشخص.", ephemeral=True)
 
-    # ----------------- 2. أمر الطرد (/kick) -----------------
+    # ----------------- 5. أمر الطرد (/kick) -----------------
     @app_commands.command(name="kick", description="طرد عضو من السيرفر")
-    @app_commands.describe(member="العضو المراد طرده", reason="السبب (اختياري)")
+    @app_commands.describe(member="العضو المراد طرده", reason="السبب")
     @app_commands.checks.has_permissions(kick_members=True)
     async def kick(self, interaction: discord.Interaction, member: discord.Member, reason: str = "لم يتم تحديد سبب"):
         if member.top_role >= interaction.user.top_role:
@@ -34,9 +87,9 @@ class Actions(commands.Cog):
             await member.kick(reason=reason)
             await interaction.response.send_message(f"🚪 تم بنجاح طرد العضو {member.mention}\n**السبب:** {reason}")
         except discord.Forbidden:
-            await interaction.response.send_message("❌ رتبة البوت أقل من رتبة هذا الشخص في السيرفر.", ephemeral=True)
+            await interaction.response.send_message("❌ رتبة البوت أقل من رتبة هذا الشخص.", ephemeral=True)
 
-    # ----------------- 3. أمر التحذير (/warn) -----------------
+    # ----------------- 6. أمر التحذير (/warn) -----------------
     @app_commands.command(name="warn", description="توجيه تحذير لعضو")
     @app_commands.describe(member="العضو المراد تحذيره", reason="سبب التحذير")
     @app_commands.checks.has_permissions(manage_messages=True)
@@ -53,7 +106,6 @@ class Actions(commands.Cog):
 
         await interaction.response.send_message(f"⚠️ تم تحذير {member.mention}\n**السبب:** {reason}\n**عدد تحذيراته الحالية:** {total_warns}")
 
-        # نظام طرد تلقائي عند الوصول إلى 3 تحذيرات
         if total_warns >= 3:
             try:
                 await member.kick(reason="تجاوز الحد الأقصى من التحذيرات")
@@ -62,7 +114,6 @@ class Actions(commands.Cog):
             except discord.Forbidden:
                 pass
 
-# دالة الـ setup الأساسية
 async def setup(bot):
     await bot.add_cog(Actions(bot))
-                          
+            
