@@ -1,64 +1,71 @@
 import discord
-from discord import app_commands
 from discord.ext import commands
+from discord import app_commands
+import asyncio
 
 class Actions(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.auto_responses = {}
-        self.MAX_RESPONSES = 5  # الحد الأقصى للردود
 
-    # ----------------- أمر إضافة رد تلقائي -----------------
-    @app_commands.command(name="add_say", description="إضافة رد تلقائي جديد للكلمات")
-    @app_commands.describe(trigger="الكلمة التي يبحث عنها البوت في الجملة", response="رد البوت عليها")
-    @app_commands.checks.has_permissions(manage_messages=True)
-    async def add_say(self, interaction: discord.Interaction, trigger: str, response: str):
-        if len(self.auto_responses) >= self.MAX_RESPONSES:
-            await interaction.response.send_message(f"❌ وصلت للحد الأقصى من الردود ({self.MAX_RESPONSES})! امسح أحدها أولاً.", ephemeral=True)
-            return
-
-        for i in range(1, self.MAX_RESPONSES + 1):
-            slot_name = f"option_{i}"
-            if slot_name not in self.auto_responses:
-                self.auto_responses[slot_name] = {
-                    "trigger": trigger.lower().strip(),
-                    "response": response
-                }
-                await interaction.response.send_message(f"✅ تم إضافة الرد بنجاح!\nإذا احتوت الجملة على: `{trigger}` سأرد بـ: `{response}`", ephemeral=True)
-                return
-
-    # ----------------- أمر حذف رد تلقائي -----------------
-    @app_commands.command(name="remove_say", description="منع وحذف رد تلقائي معين")
-    @app_commands.describe(option="اختر رقم الخيار لحذفه")
-    @app_commands.choices(option=[
-        app_commands.Choice(name="Option 1", value="option_1"),
-        app_commands.Choice(name="Option 2", value="option_2"),
-        app_commands.Choice(name="Option 3", value="option_3"),
-        app_commands.Choice(name="Option 4", value="option_4"),
-        app_commands.Choice(name="Option 5", value="option_5"),
+    # 1. أمر /say المطور مع الخيارات المتقدمة (البوت أو Webhook + التكرار)
+    @app_commands.command(name="say", description="إرسال رسالة مكررة عبر البوت أو عبر Webhook مخصص")
+    @app_commands.describe(
+        الرسالة="اكتب النص الذي تريد من البوت إرساله",
+        طريقة_الإرسال="اختر هل ترسل الرسالة باسم البوت أو عبر Webhook مخصص والسيرفر",
+        عدد_التكرار="كم مرة تريد تكرار الرسالة؟ (الحد الأقصى 5 مرات)"
+    )
+    @app_commands.choices(طريقة_الإرسال=[
+        app_commands.Choice(name="🤖 إرسال باسم البوت العادي", value="bot"),
+        app_commands.Choice(name="🌐 إرسال عبر الـ Webhook مخصص", value="webhook")
     ])
     @app_commands.checks.has_permissions(manage_messages=True)
-    async def remove_say(self, interaction: discord.Interaction, option: app_commands.Choice[str]):
-        slot = option.value
-        if slot in self.auto_responses:
-            old_trigger = self.auto_responses[slot]['trigger']
-            del self.auto_responses[slot]
-            await interaction.response.send_message(f"🛑 تم حذف الرد الخاص بـ **{option.name}** (الكلمة: `{old_trigger}`).", ephemeral=True)
-        else:
-            await interaction.response.send_message(f"ℹ️ الخيار فارغ بالفعل.", ephemeral=True)
-
-    # ----------------- الاستماع للرسائل (البحث الذكي) -----------------
-    @commands.Cog.listener()
-    async def on_message(self, message: discord.Message):
-        if message.author == self.bot.user:
+    async def say(self, interaction: discord.Interaction, الرسالة: str, طريقة_الإرسال: str, عدد_التكرار: int = 1):
+        # للتأكد أن المستخدم لم يضع رقماً سالباً أو كبيراً جداً لحماية السيرفر من السبام العشوائي
+        if عدد_التكرار < 1:
+            عدد_التكرار = 1
+        elif عدد_التكرار > 5:
+            await interaction.response.send_message("⚠️ الحد الأقصى للتكرار هو 5 مرات فقط لحماية السيرفر!", ephemeral=True)
             return
 
-        user_text = message.content.lower().strip()
-        
-        for slot, data in self.auto_responses.items():
-            if data["trigger"] in user_text:
-                await message.channel.send(data["response"])
-                break
+        # الرد الأولي المخفي حتى لا يعطي ديسكورد خطأ انتهاء وقت الاستجابة
+        await interaction.response.send_message("🔄 جاري معالجة وإرسال طلبك...", ephemeral=True)
+
+        # تنفيذ الإرسال بناءً على اختيار المستخدم
+        if طريقة_الإرسال == "bot":
+            for _ in range(عدد_التكرار):
+                await interaction.channel.send(الرسالة)
+                await asyncio.sleep(0.5) # فاصل زمني بسيط لتجنب حظر ديسكورد للأوامر السريعة
+                
+        elif طريقة_الإرسال == "webhook":
+            # البحث عن Webhook موجود في الروم الحالي أو إنشاء واحد جديد هندسياً
+            channel = interaction.channel
+            webhooks = await channel.webhooks()
+            webhook = discord.utils.get(webhooks, name="Dabdobi Webhook")
+            
+            if not webhook:
+                # إذا لم يجد ويب هوك قديم، يصنع واحد باسم دبدوبي وصورته الشخصية تلقائياً
+                webhook = await channel.create_webhook(name="Dabdobi Webhook", avatar=await self.bot.user.avatar.read())
+
+            for _ in range(عدد_التكرار):
+                # هنا يتم الإرسال عبر الويب هوك، ويمكنك مستقبلاً تخصيص اسم وصورة مختلفة لو أردت!
+                await webhook.send(content=الرسالة, username="دبدوبي الخارق", avatar_url=self.bot.user.display_avatar.url)
+                await asyncio.sleep(0.5)
+
+    # 2. ميزة الرد التلقائي الذكي على كلمة !hi التي أعدناها سابقاً
+    @commands.Cog.listener()
+    async def on_message(self, message):
+        if message.author.id == self.bot.user.id:
+            return
+
+        if "!hi" in message.content.lower():
+            await message.channel.send('أهلاً بك! دبدوبي في الخدمة ومستعد للأوامر المتقدمة. 🐾')
+
+    # التعامل مع أخطاء صلاحيات الأمر
+    @say.error
+    async def say_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        if isinstance(error, app_commands.errors.MissingPermissions):
+            await interaction.response.send_message("❌ تحتاج إلى صلاحية `إدارة الرسائل` لاستخدام هذا الأمر.", ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(Actions(bot))
+    
