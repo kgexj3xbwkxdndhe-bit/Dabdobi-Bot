@@ -1,55 +1,83 @@
 import discord
+from discord import app_commands
 from discord.ext import commands
-from discord import app_commands # مكتبة أوامر السلاش المتطورة
 
-class Actions(commands.Cog):
-    def __init__(self, bot):
-        self.bot = bot
-
-    # أمر السلاش /say مع الخيارات الذكية
-    @app_commands.command(name="say", description="إرسال رسالة مخصصة (عام في الروم أو خاص لعضو معين)")
-    @app_commands.describe(
-        نوع_الرسالة="اختر هل تريد إرسال الرسالة في الروم الحالي (عام) أم في الخاص لعضو؟",
-        الرسالة="اكتب النص الذي تريد من دبدوبي أن يرسله",
-        العضو="اختر العضو (مطلوب فقط إذا اخترت إرسال الرسالة في الخاص)"
-    )
-    # تحديد الاختيارات المتاحة للمشرف
-    @app_commands.choices(نوع_الرسالة=[
-        app_commands.Choice(name="عام (في الروم الحالي)", value="public"),
-        app_commands.Choice(name="خاص (إلى عضو معين)", value="private")
-    ])
-    @app_commands.checks.has_permissions(manage_messages=True) # صلاحية استخدام الأمر
-    async def say(self, interaction: discord.Interaction, نوع_الرسالة: str, الرسالة: str, العضو: discord.Member = None):
+class MyBot(commands.Bot):
+    def __init__(self):
+        super().__init__(command_prefix="!", intents=discord.Intents.default())
         
-        # 1. إذا اختار إرسال في العام (الروم الحالي)
-        if نوع_الرسالة == "public":
-            # الرد على الـ Interaction بشكل مخفي لكي لا يرى الأعضاء أنك استخدمت الأمر
-            await interaction.response.send_message("جاري إرسال الرسالة في الروم...", ephemeral=True)
-            # إرسال الرسالة في الروم
-            await interaction.channel.send(الرسالة)
+    async def setup_hook(self):
+        # تضمن مزامنة الأوامر مع السيرفر
+        await self.tree.sync()
 
-        # 2. إذا اختار إرسال في الخاص
-        elif نوع_الرسالة == "private":
-            # التأكد أولاً أنه اختار عضواً
-            if العضو is None:
-                await interaction.response.send_message("❌ خطأ: يجب عليك تحديد العضو الذي تريد الإرسال له في الخاص!", ephemeral=True)
-                return
-            
-            try:
-                # محاولة إرسال الرسالة في خاص العضو
-                await interaction.response.send_message(f"جاري إرسال الرسالة إلى خاص {العضو.display_name}...", ephemeral=True)
-                await العضو.send(f"📬 **وصلتك رسالة من إدارة السيرفر:**\n\n{الرسالة}")
-            except discord.Forbidden:
-                # إذا كان العضو مغلقاً للخاص (Direct Messages)
-                await interaction.followup.send(f"❌ لم أتمكن من إرسال الرسالة لـ {العضو.mention} لأن حسابه مغلق للرسائل الخاصة.", ephemeral=True)
-            except Exception as e:
-                await interaction.followup.send(f"❌ حدث خطأ غير متوقع: {e}", ephemeral=True)
+bot = MyBot()
 
-    # التعامل مع أخطاء الصلاحيات
-    @say.error
-    async def say_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
-        if isinstance(error, app_commands.errors.MissingPermissions):
-            await interaction.response.send_message("❌ ليس لديك صلاحية استخدام هذا الأمر (تحتاج صلاحية إدارة الرسائل).", ephemeral=True)
+# قاعدة بيانات مؤقتة لتخزين الردود (في كود الإنتاج يفضل استخدام SQLite أو JSON)
+# الهيكل سيكون: { "option_1": {"trigger": "hi", "response": "هلا فيك"} }
+auto_responses = {}
+MAX_RESPONSES = 5 # حد أقصى للردود لتجنب الفوضى
 
-async def setup(bot):
-    await bot.add_cog(Actions(bot))
+# ----------------- 1. أمر إضافة رد تلقائي -----------------
+@bot.tree.command(name="add_say", description="إضافة رد تلقائي جديد")
+@app_commands.describe(
+    trigger="الكلمة التي يكتبها المستخدم (مثال: hi)",
+    response="رد البوت عليها (مثال: هلا فيك)"
+)
+async def add_say(interaction: discord.Interaction, trigger: str, response: str):
+    # التحقق من عدم تجاوز الحد الأقصى
+    if len(auto_responses) >= MAX_RESPONSES:
+        await interaction.response.send_message(f"❌ عذراً، لقد وصلت للحد الأقصى من الردود ({MAX_RESPONSES})! امسح أحدها أولاً.", ephemeral=True)
+        return
+
+    # البحث عن أول اسم خيار متاح (Option 1, Option 2...)
+    for i in range(1, MAX_RESPONSES + 1):
+        slot_name = f"option_{i}"
+        if slot_name not in auto_responses:
+            auto_responses[slot_name] = {
+                "trigger": trigger.lower().strip(),
+                "response": response
+            }
+            await interaction.response.send_message(f"✅ تم إضافة الرد بنجاح في **{slot_name}**!\nإذا أحد قال: `{trigger}` سأرد بـ: `{response}`", ephemeral=True)
+            return
+
+# ----------------- 2. أمر منع (حذف) رد تلقائي -----------------
+@bot.tree.command(name="remove_say", description="منع وحذف رد تلقائي معين")
+@app_commands.describe(option="اختر رقم الخيار الذي تريد حذفه من القائمة")
+# استخدام choices لإظهار القائمة بشكل احترافي للمستخدم (Option 1, Option 2...)
+@app_commands.choices(option=[
+    app_commands.Choice(name="Option 1", value="option_1"),
+    app_commands.Choice(name="Option 2", value="option_2"),
+    app_commands.Choice(name="Option 3", value="option_3"),
+    app_commands.Choice(name="Option 4", value="option_4"),
+    app_commands.Choice(name="Option 5", value="option_5"),
+])
+async def remove_say(interaction: discord.Interaction, option: app_commands.Choice[str]):
+    slot = option.value
+    
+    if slot in auto_responses:
+        old_trigger = auto_responses[slot]['trigger']
+        del auto_responses[slot] # حذف الرد من قاعدة البيانات
+        await interaction.response.send_message(f"🛑 تم منع وحذف الرد الخاص بـ **{option.name}** (الكلمة الممنوعة: `{old_trigger}`).", ephemeral=True)
+    else:
+        await interaction.response.send_message(f"ℹ️ **{option.name}** فارغ بالفعل ولا يحتوي على أي رد لمنعه.", ephemeral=True)
+
+# ----------------- 3. الاستماع للرسائل لتفعيل الردود -----------------
+@bot.event
+async def on_message(message: message):
+    # تجنب رد البوت على نفسه
+    if message.author == bot.user:
+        return
+
+    # تنظيف النص المرسل (تحويله لسمول وإزالة المسافات الزائدة)
+    user_text = message.content.lower().strip()
+
+    # الفحص إذا كانت الكلمة موجودة في قاعدة البيانات
+    for slot, data in auto_responses.items():
+        if user_text == data["trigger"]:
+            await message.channel.send(data["response"])
+            break # التوقف بعد إيجاد أول تطابق
+
+    await bot.process_commands(message)
+
+# ضع التوكن الخاص ببوت Dabdobi هنا
+bot.run("YOUR_BOT_TOKEN")
