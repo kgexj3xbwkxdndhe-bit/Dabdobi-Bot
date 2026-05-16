@@ -1,1 +1,56 @@
+import discord
+from discord.ext import commands
+import os
+import asyncio
 
+# 1. إعدادات البوت والـ Intents الأساسية
+TOKEN = os.getenv('DISCORD_TOKEN')
+
+intents = discord.Intents.default()
+intents.message_content = True  # لقراءة الرسائل العادية (مثل !hi والتكرار)
+intents.members = True          # ضروري جداً لرصد دخول الأعضاء الجدد للترحيب
+
+bot = commands.Bot(command_prefix="!", intents=intents)
+
+# 2. دالة البحث التلقائي عن الملفات داخل مجلد cogs وتحميلها
+async def load_extensions():
+    # التأكد من وجود المجلد أولاً لكي لا يحدث خطأ عند التشغيل
+    if os.path.exists('./cogs'):
+        for filename in os.listdir('./cogs'):
+            if filename.endswith('.py'):
+                # شحن الملف ديناميكياً (مثال: cogs.welcome)
+                await bot.load_extension(f'cogs.{filename[:-3]}')
+                print(f'✅ تم تحميل الملف بنجاح: {filename}')
+    else:
+        print("⚠️ تنبيه: لم يتم العثور على مجلد اسمه cogs! قم بإنشائه ووضع ملفاتك داخله.")
+
+# 3. دالة التشغيل والمزامنة الأساسية
+async def main():
+    async with bot:
+        await load_extensions()
+        await bot.start(TOKEN)
+
+@bot.event
+async def on_ready():
+    print(f'------------------------------------')
+    print(f'تم تشغيل {bot.user.name} بنجاح بأعلى كفاءة!')
+    print(f'البوت الآن يعمل بنظام الـ Cogs المنفصلة والمطورة.')
+    
+    # مزامنة أوامر السلاش (/) مع خوادم ديسكورد
+    try:
+        synced = await bot.tree.sync()
+        print(f"✅ تم مزامنة {len(synced)} من أوامر السلاش بنجاح (ظهر أمر /say الآن)!")
+    except Exception as e:
+        print(f"❌ فشل مزامنة أوامر السلاش: {e}")
+        
+    print(f'------------------------------------')
+
+# تشغيل البوت بأمان برمجياً
+if __name__ == '__main__':
+    if TOKEN:
+        try:
+            asyncio.run(main())
+        except KeyboardInterrupt:
+            print("تم إيقاف البوت يدويًا.")
+    else:
+        print("❌ خطأ مصيري: لم يتم العثور على التوكن (DISCORD_TOKEN) في إعدادات البيئة (Environment Variables).")
