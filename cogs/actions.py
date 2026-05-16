@@ -37,8 +37,8 @@ class Actions(commands.Cog):
     async def say(self, interaction: discord.Interaction, الرسالة: str, طريقة_الإرسال: str, عدد_التكرار: int = 1):
         if عدد_التكرار < 1:
             عدد_التكرار = 1
-        elif عدد_التكرار > 999:
-            await interaction.response.send_message("⚠️ الحد الأقصى المسموح به حالياً في الكود هو 999 مرة فقط!", ephemeral=True)
+        elif عدد_التكرار > 99999:
+            await interaction.response.send_message("⚠️ الحد الأقصى المسموح به حالياً في الكود هو 99999 مرة فقط!", ephemeral=True)
             return
 
         await interaction.response.send_message(f"🚀 تم إطلاق المهمة بنجاح! سيتم إرسال الرسالة {عدد_التكرار} مرة كل 5 ثوانٍ في الخلفية بدون ضغط.", ephemeral=True)
